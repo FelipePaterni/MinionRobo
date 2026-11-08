@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MinionRobo — Monitor</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 820px; margin: 0 auto; padding: 24px; background: #111827; color: #f9fafb; }
+    h1 { margin: 0 0 6px; }
+    p { color: #9ca3af; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 18px 0; }
+    input, button { border: 1px solid #374151; border-radius: 8px; padding: 10px; background: #1f2937; color: inherit; }
+    button { cursor: pointer; background: #2563eb; border: 0; }
+    #connection { font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .card { background: #1f2937; border-radius: 12px; padding: 18px; }
+    .label { color: #9ca3af; font-size: .9rem; }
+    .value { margin-top: 8px; font-size: 1.45rem; font-weight: 700; }
+    .ok { color: #34d399; } .warn { color: #fbbf24; } .bad { color: #fb7185; }
+  </style>
+</head>
+<body>
+  <h1>MinionRobo</h1>
+  <p>Monitoramento somente leitura da autonomia do ESP32.</p>
+  <div class="toolbar">
+    <label>ESP: <input id="host" value="http://192.168.4.1" size="24"></label>
+    <button id="connect">Conectar</button>
+    <span id="connection" class="bad">Desconectado</span>
+  </div>
+  <section class="grid">
+    <article class="card"><div class="label">Estado</div><div id="state" class="value">--</div></article>
+    <article class="card"><div class="label">HC-SR04</div><div id="distance" class="value">--</div><div id="distanceInfo" class="label">--</div></article>
+    <article class="card"><div class="label">IR traseiro</div><div id="ir" class="value">--</div><div id="irRaw" class="label">--</div></article>
+    <article class="card"><div class="label">Motores</div><div id="motors" class="value">--</div><div id="motorInfo" class="label">--</div></article>
+  </section>
+  <script>
+    const $ = id => document.getElementById(id);
+    let timer;
+    function baseUrl() { return $('host').value.replace(/\/$/, ''); }
+    function setConnection(ok, text) {
+      $('connection').textContent = text;
+      $('connection').className = ok ? 'ok' : 'bad';
+    }
+    async function refresh() {
+      try {
+        const response = await fetch(baseUrl() + '/api/status', { cache: 'no-store' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const s = await response.json();
+        setConnection(true, 'Conectado');
+        $('state').textContent = s.state;
+        $('distance').textContent = s.distanceValid ? s.distanceCm.toFixed(1) + ' cm' : 'Sem eco';
+        $('distance').className = 'value ' + (s.distanceValid ? 'ok' : 'bad');
+        $('distanceInfo').textContent = s.distanceValid ? 'Leitura válida' : 'Leitura inválida';
+        $('ir').textContent = s.irDetected ? 'OBSTÁCULO' : 'LIVRE';
+        $('ir').className = 'value ' + (s.irDetected ? 'warn' : 'ok');
+        $('irRaw').textContent = 'Nível bruto: ' + s.irRaw;
+        $('motors').textContent = s.motorsReady ? 'ATIVOS' : 'PWM INDISPONÍVEL';
+        $('motors').className = 'value ' + (s.motorsReady ? 'ok' : 'bad');
+        $('motorInfo').textContent = 'L: ' + s.motorLeft + ' · R: ' + s.motorRight;
+      } catch (error) {
+        setConnection(false, 'Sem comunicação');
+      }
+    }
+    $('connect').addEventListener('click', refresh);
+    $('host').addEventListener('change', refresh);
+    refresh();
+    timer = setInterval(refresh, 500);
+  </script>
+</body>
+</html>
